@@ -1,0 +1,60 @@
+/**
+ * 源码跳转链接的样式（#write 内唯一的例外）
+ *
+ * shell.css 开头立了规矩：不给 #write 内部写排版样式，那是 Typora 主题的地盘。
+ * 这里不违背它 —— 主题管的是「文档长什么样」，这个文件管的是
+ * 「应用注入的功能性可点区域长什么样」，是两件事，所以单独拆一个文件。
+ *
+ * 命中的是 [L550](Setsuna/SkillData.cs#L550) 这类链接：
+ * 主进程渲染时打上了 data-link-type="local" + data-local-path="...绝对路径.cs"，
+ * 点下去会用 Visual Studio 2022 打开并跳到那一行。
+ *
+ * 为什么不用 !important：
+ *   12 个主题都是 `#write a { color: ... }`，特异性 (1,0,1)，且都没写 !important。
+ *   下面的选择器是 (1,2,1)，天然压得过，不需要动用 !important。
+ *
+ * 为什么颜色写死而不跟主题走：
+ *   刻意的选择 —— 12 个主题下「可跳转」都是同一个蓝色，认知一致。
+ *   底色用半透明，所以在浅色和深色主题上都能自然融进背景。
+ *   要改的话只改下面这三个变量就够。
+ */
+
+:root {
+  --junky-codelink: #3d8bfd;
+  --junky-codelink-bg: rgba(61, 139, 253, 0.16);
+  --junky-codelink-bg-hover: rgba(61, 139, 253, 0.32);
+}
+
+#write a[data-link-type="local"][data-local-path$=".cs" i] {
+  display: inline-block;
+  font-family: "Cascadia Code", "JetBrains Mono", Consolas, "Courier New", monospace;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--junky-codelink);
+  background: var(--junky-codelink-bg);
+  padding: 0.05em 0.42em;
+  margin: 0 0.1em;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  white-space: nowrap;          /* L1875–1919 这种不要被折行拆开 */
+  vertical-align: baseline;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+#write a[data-link-type="local"][data-local-path$=".cs" i]:hover {
+  background: var(--junky-codelink-bg-hover);
+  border-color: var(--junky-codelink);
+  text-decoration: none;        /* 盖掉主题的 a:hover { text-decoration: underline } */
+  cursor: pointer;
+}
+
+#write a[data-link-type="local"][data-local-path$=".cs" i]:active {
+  transform: translateY(1px);
+}
+
+/* 表格里的徽章不要把行高撑开 —— 这份文档表格很多 */
+#write table a[data-link-type="local"][data-local-path$=".cs" i] {
+  margin: 0;
+}

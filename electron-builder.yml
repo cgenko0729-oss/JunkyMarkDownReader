@@ -1,0 +1,62 @@
+appId: com.tonycheung.junkymarkdownreader
+productName: Junky Markdown Reader
+copyright: Copyright © 2026 Tony Cheung
+
+directories:
+  output: dist
+  buildResources: assets
+
+# node_modules 由 electron-builder 依据 package.json 的 dependencies 自动裁剪，
+# 这里只需要排除不该进包的东西。
+files:
+  - "**/*"
+  - "!dist/**"
+  - "!sample/**"        # 示例文档走 extraResources，安装后可直接编辑
+  - "!PLAN.md"
+  - "!**/*.map"
+  - "!**/.git/**"
+
+# 示例文档放到 resources/sample/，安装后用户能自由改动
+extraResources:
+  - from: sample
+    to: sample
+
+win:
+  icon: assets/icon.ico
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false                          # 显示安装向导，而不是一路装完
+  perMachine: false                        # 装到当前用户，不需要管理员权限
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Junky Markdown Reader
+  artifactName: ${productName}-${version}-Setup.${ext}
+  deleteAppDataOnUninstall: false          # 卸载时保留设置，重装后主题/字号还在
+
+# .md 文件关联：安装后可以「双击 .md 用本程序打开」
+fileAssociations:
+  - ext: md
+    name: Markdown Document
+    description: Markdown 文档
+    icon: assets/icon.ico
+    role: Viewer
+  - ext: markdown
+    name: Markdown Document
+    description: Markdown 文档
+    icon: assets/icon.ico
+    role: Viewer
+  - ext: mdown
+    name: Markdown Document
+    description: Markdown 文档
+    icon: assets/icon.ico
+    role: Viewer
+  - ext: mkd
+    name: Markdown Document
+    description: Markdown 文档
+    icon: assets/icon.ico
+    role: Viewer

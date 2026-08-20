@@ -1,0 +1,999 @@
+/**
+ * 外壳 UI 样式（工具栏 / 侧栏 / 大纲 / 空状态 / 浮层）
+ *
+ * 双层样式体系的外层。这个文件故意最后加载，好压过 Typora 主题里的 body 规则。
+ *
+ * 两条铁律：
+ *  1. 不要给 #write 内部的元素写任何排版样式 —— 那是 Typora 主题的地盘。
+ *     本文件末尾只有少数几条可用性兜底（代码块/宽表格的横向滚动）。
+ *  2. 外壳里所有元素都必须显式声明 background 和 color。因为 Typora 主题会设
+ *     body 的颜色，不显式声明的话侧栏会跟着主题变色，变成一锅乱粥。
+ */
+
+/* ---------------- 配色变量 ---------------- */
+
+:root {
+  --shell-bg: #f6f7f8;
+  --shell-bg-raised: #ffffff;
+  --shell-fg: #24292f;
+  --shell-fg-muted: #656d76;
+  --shell-border: #d8dee4;
+  --shell-hover: #eaeef2;
+  --shell-active-bg: #dbeafe;
+  --shell-accent: #0969da;
+  --shell-shadow: rgba(31, 35, 40, 0.12);
+  --shell-overlay: rgba(255, 255, 255, 0.82);
+}
+
+:root[data-mode="dark"] {
+  --shell-bg: #22252a;
+  --shell-bg-raised: #2b2f36;
+  --shell-fg: #d7dae0;
+  --shell-fg-muted: #8b939e;
+  --shell-border: #3a3f47;
+  --shell-hover: #33383f;
+  --shell-active-bg: #1f3a5f;
+  --shell-accent: #6cb0ff;
+  --shell-shadow: rgba(0, 0, 0, 0.5);
+  --shell-overlay: rgba(20, 22, 25, 0.85);
+}
+
+/* ---------------- 页面骨架 ---------------- */
+
+/* 这几条要压住 Typora 主题对 body 的布局设定：滚动交给 .content 自己管 */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+/* 注意：body 的 background / color / font-family 故意不写，
+   留给 Typora 主题决定 —— 正文区背景于是自动与主题一致。 */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;   /* flex 子项能正确收缩的关键 */
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* ---------------- 工具栏 ---------------- */
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 40px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  background: var(--shell-bg);
+  color: var(--shell-fg);
+  border-bottom: 1px solid var(--shell-border);
+  font: 13px/1.4 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif, "Segoe UI Emoji";
+  user-select: none;
+}
+
+.tb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--shell-fg);
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tb-btn:hover {
+  background: var(--shell-hover);
+}
+
+.tb-btn:active {
+  transform: translateY(1px);
+}
+
+.tb-btn.active {
+  background: var(--shell-active-bg);
+  color: var(--shell-accent);
+}
+
+.tb-btn.tb-icon {
+  min-width: 30px;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+.tb-btn svg {
+  display: block;
+}
+
+.tb-title {
+  flex: 1;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--shell-fg);
+  font-weight: 600;
+  text-align: center;
+}
+
+.tb-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.tb-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 0 2px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+}
+
+.tb-readout {
+  min-width: 20px;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 宽度读数要容得下「主题」两个字和四位数字，宽度固定住免得按钮左右跳 */
+.tb-readout-wide {
+  min-width: 34px;
+}
+
+.tb-select {
+  height: 26px;
+  max-width: 150px;
+  padding: 0 4px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* ---------------- 侧栏（文件树 / 大纲通用） ---------------- */
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  background: var(--shell-bg);
+  color: var(--shell-fg);
+  font: 13px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif, "Segoe UI Emoji";
+  user-select: none;
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 240px;
+  min-width: 240px;
+  border-right: 1px solid var(--shell-border);
+}
+
+.outline {
+  width: 230px;
+  min-width: 230px;
+  border-left: 1px solid var(--shell-border);
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--shell-border);
+  color: var(--shell-fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.pane-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pane-btn {
+  border: none;
+  background: transparent;
+  color: var(--shell-fg-muted);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.pane-btn:hover {
+  background: var(--shell-hover);
+  color: var(--shell-fg);
+}
+
+.pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0 12px;
+}
+
+.pane-empty {
+  padding: 16px 12px;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--shell-accent);
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 0;
+  text-decoration: underline;
+}
+
+/* ---------------- 文件树 ---------------- */
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px 3px 0;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tree-row:hover {
+  background: var(--shell-hover);
+}
+
+.tree-row.active {
+  background: var(--shell-active-bg);
+  color: var(--shell-accent);
+  font-weight: 600;
+}
+
+.tree-arrow {
+  flex: 0 0 auto;
+  width: 13px;
+  color: var(--shell-fg-muted);
+  font-size: 9px;
+  text-align: center;
+}
+
+.tree-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-dir > .tree-row > .tree-name {
+  font-weight: 500;
+}
+
+.tree-file > .tree-row > .tree-name {
+  color: inherit;
+}
+
+.tree-empty,
+.tree-error {
+  padding: 2px 8px;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ---------------- 大纲 ---------------- */
+
+.outline-item {
+  padding: 3px 10px 3px 0;
+  border-left: 2px solid transparent;
+  color: var(--shell-fg-muted);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.outline-item:hover {
+  background: var(--shell-hover);
+  color: var(--shell-fg);
+}
+
+.outline-item.active {
+  border-left-color: var(--shell-accent);
+  background: var(--shell-active-bg);
+  color: var(--shell-accent);
+  font-weight: 600;
+}
+
+.outline-item.level-1 {
+  font-weight: 600;
+  color: var(--shell-fg);
+}
+
+/* ---------------- 正文滚动容器 ---------------- */
+
+.content {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  outline: none;
+  /* 让 100cqw 等于正文区自身的宽度，宽元素突破时据此算防溢出上限 */
+  container-type: inline-size;
+  /* 背景刻意留空：透出 body 的背景，也就是 Typora 主题的背景色 */
+}
+
+/* ---------------- 源码编辑模式 ---------------- */
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+  font: 13px/1.4 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif, "Segoe UI Emoji";
+}
+
+/* 处于编辑模式时把工具栏的「编辑」按钮点亮，一眼看得出当前状态 */
+body.editing #btn-edit {
+  background: var(--shell-active-bg);
+  color: var(--shell-accent);
+}
+
+.editor-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  height: 34px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  background: var(--shell-bg);
+  border-bottom: 1px solid var(--shell-border);
+  user-select: none;
+}
+
+.editor-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+}
+
+.editor-status {
+  padding: 0 8px;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+}
+
+.editor-status.dirty {
+  color: #bf8700;
+  font-weight: 600;
+}
+
+:root[data-mode="dark"] .editor-status.dirty {
+  color: #e3b341;
+}
+
+.editor-body {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/*
+ * 行号槽。外层负责裁剪，内层整体上移来跟随 textarea 的滚动 ——
+ * 用 transform 而不是改 scrollTop，滚动时不会触发重排。
+ */
+.editor-gutter {
+  position: relative;
+  flex: 0 0 auto;
+  width: 56px;
+  overflow: hidden;
+  background: var(--shell-bg);
+  border-right: 1px solid var(--shell-border);
+}
+
+.editor-gutter-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.editor-linenum {
+  position: absolute;
+  right: 10px;
+  color: var(--shell-fg-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/*
+ * textarea 与镜像必须**逐项一致**：字体、行高、内边距、换行规则。
+ * 差一点点，行号就会随着往下越飘越远。改这里请两边一起改。
+ */
+.editor-input,
+.editor-mirror,
+.editor-linenum {
+  font: 14px/1.7 ui-monospace, "Cascadia Mono", Consolas, "Microsoft YaHei", monospace;
+  tab-size: 2;
+}
+
+.editor-input,
+.editor-mirror {
+  box-sizing: border-box;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.editor-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: var(--shell-fg);
+  /* 常驻滚动条：让 clientWidth 恒定，内容变长时换行位置不会突然全变 */
+  overflow-y: scroll;
+}
+
+/*
+ * 隐藏的量尺。padding 必须是 0：offsetTop 从内边距边缘算起，
+ * 留了 padding 就会和 textarea 差一截（editor.js 里补的是 textarea 那边的）。
+ */
+.editor-mirror {
+  position: absolute;
+  top: 0;
+  left: -99999px;
+  padding: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* ---------------- 源文件行号槽 ---------------- */
+
+:root {
+  --linenum-width: 54px;
+}
+
+/*
+ * 开着行号时给正文区腾出左边一条。绝对定位的槽正好落在这条内边距里，
+ * 段落再宽也压不到行号上。
+ */
+body.show-line-numbers .content {
+  padding-left: var(--linenum-width);
+}
+
+.linenum-gutter {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--linenum-width);
+  height: 0;              /* 只作定位锚点，不占空间 */
+  z-index: 5;             /* 低于查找条（30），行号不该盖住它 */
+  pointer-events: none;   /* 行号纯展示，不吃鼠标事件 */
+  user-select: none;
+}
+
+.linenum {
+  position: absolute;
+  right: 12px;            /* 右对齐：位数不同的行号个位仍然对齐 */
+  line-height: 16px;
+  font: 12px/16px ui-monospace, "Cascadia Mono", Consolas, "Courier New", monospace;
+  color: var(--shell-fg-muted);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* ---------------- 查找条（Ctrl+F） ---------------- */
+
+/*
+ * dock 是个高度为 0 的空壳，只负责把查找条钉在正文区右上角：
+ *  - sticky 而不是 absolute：.content 自己是滚动容器，absolute 的子元素
+ *    会跟着内容一起滚走，sticky 才是真的浮在上面
+ *  - height: 0 + 后面的元素照常从顶部开始排，正文不会被推下去
+ */
+.findbar-dock {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 16px;   /* 让开右侧滚动条 */
+  pointer-events: none;  /* 空壳本身不吃鼠标事件，只有查找条吃 */
+}
+
+/*
+ * 贴住正文区顶边，只有下面两个角是圆的。
+ * 不留上边距是有意的：留了缝，正文滚动时会从缝里露出半行字，很脏。
+ */
+.findbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--shell-border);
+  border-top: none;
+  border-radius: 0 0 7px 7px;
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+  box-shadow: 0 4px 14px var(--shell-shadow);
+  font: 13px/1.4 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif, "Segoe UI Emoji";
+  pointer-events: auto;
+}
+
+.find-icon {
+  flex: 0 0 auto;
+  margin: 0 2px 0 4px;
+  color: var(--shell-fg-muted);
+}
+
+.find-input {
+  width: 190px;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--shell-border);
+  border-radius: 5px;
+  background: var(--shell-bg);
+  color: var(--shell-fg);
+  font: inherit;
+  outline: none;
+}
+
+.find-input:focus {
+  border-color: var(--shell-accent);
+}
+
+/* 有关键字但一个都没找到 */
+.find-input.no-match {
+  border-color: #d1242f;
+  color: #d1242f;
+}
+
+:root[data-mode="dark"] .find-input.no-match {
+  border-color: #ff7b72;
+  color: #ff7b72;
+}
+
+.find-count {
+  min-width: 44px;
+  padding: 0 2px;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;  /* 数字等宽，计数跳动时按钮不会左右晃 */
+  user-select: none;
+}
+
+.find-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--shell-fg);
+  cursor: pointer;
+}
+
+.find-btn:hover:not(:disabled) {
+  background: var(--shell-hover);
+}
+
+.find-btn:disabled {
+  color: var(--shell-fg-muted);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.find-btn svg {
+  display: block;
+}
+
+/*
+ * 命中高亮。走的是 CSS Custom Highlight API，不往 #write 里插标签，
+ * 所以不会打扰 Typora 主题的排版。
+ * ::highlight() 能设的属性有限（color / background-color / text-decoration
+ * / text-shadow），这里够用了。
+ */
+::highlight(jmr-find) {
+  background-color: #ffe08a;
+  color: #1b1b1b;
+}
+
+::highlight(jmr-find-current) {
+  background-color: #ff9632;
+  color: #1b1b1b;
+}
+
+/* ---------------- 空状态 ---------------- */
+
+.welcome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-bg);
+  color: var(--shell-fg);
+  font: 14px/1.6 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif, "Segoe UI Emoji";
+}
+
+.welcome-inner {
+  max-width: 460px;
+  padding: 24px;
+  text-align: center;
+}
+
+.welcome-inner h1 {
+  margin: 0 0 6px;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--shell-fg);
+}
+
+.welcome-sub {
+  margin: 0 0 26px;
+  color: var(--shell-fg-muted);
+}
+
+.welcome-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.primary-btn,
+.ghost-btn {
+  height: 34px;
+  padding: 0 18px;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.primary-btn {
+  border: 1px solid var(--shell-accent);
+  background: var(--shell-accent);
+  color: #fff;
+}
+
+.primary-btn:hover {
+  filter: brightness(1.08);
+}
+
+.ghost-btn {
+  border: 1px solid var(--shell-border);
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+}
+
+.ghost-btn:hover {
+  background: var(--shell-hover);
+}
+
+.welcome-hint {
+  margin: 0;
+  color: var(--shell-fg-muted);
+  font-size: 12px;
+}
+
+.welcome-recent {
+  margin-top: 30px;
+  text-align: left;
+}
+
+.welcome-recent-title {
+  margin-bottom: 6px;
+  color: var(--shell-fg-muted);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.recent-item {
+  display: block;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--shell-accent);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-item:hover {
+  background: var(--shell-hover);
+}
+
+/* ---------------- 浮层：拖放 / 提示 / 图片放大 ---------------- */
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: var(--shell-overlay);
+  backdrop-filter: blur(2px);
+}
+
+.drop-overlay.show {
+  display: flex;
+}
+
+.drop-hint {
+  padding: 22px 40px;
+  border: 2px dashed var(--shell-accent);
+  border-radius: 12px;
+  background: var(--shell-bg-raised);
+  color: var(--shell-accent);
+  font: 600 16px/1 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif, "Segoe UI Emoji";
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 60;
+  transform: translate(-50%, 12px);
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: var(--shell-fg);
+  color: var(--shell-bg);
+  font: 13px/1.4 "Segoe UI", "Microsoft YaHei UI", system-ui, sans-serif, "Segoe UI Emoji";
+  box-shadow: 0 4px 14px var(--shell-shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  background: rgba(0, 0, 0, 0.82);
+  cursor: zoom-out;
+}
+
+.lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.6);
+}
+
+/* ---------------- #write 内部的可用性兜底 ----------------
+ * 只做「不这样会用不了」的几条，排版一律不碰。
+ */
+
+/* 宽代码块和宽表格必须能横向滚动，否则会把整个页面撑破 */
+#write pre.md-fences {
+  overflow-x: auto;
+}
+
+/* highlight.js 的样式表排在 Typora 主题之后（这样它的文字色才不会被主题盖掉），
+ * 代价是它自带的背景色也会盖住主题设计的代码块底色。这里把背景还给主题：
+ * 文字颜色归 hljs，底色归主题。 */
+#write pre.md-fences code.hljs,
+#write pre.md-fences .hljs {
+  background: transparent;
+}
+
+/* 代码里没有语法着色的那些字符（括号、分号、变量名）的颜色。
+ *
+ * 为什么要单独写：主题常用 `#write .md-fences { color: ... }` 这种高特异性
+ * 选择器设代码文字色，hljs 的 `.hljs` 规则压不过它 —— 于是亮色主题配暗色
+ * 代码块时（drake-jb 就是），这些字符会糊在背景里看不见。
+ * data-code 由 theme.js 按实测的代码块背景亮度设置，取值就是这两个
+ * hljs 主题各自的默认前景色。 */
+:root[data-code="light"] #write pre.md-fences code.hljs {
+  color: #24292f;
+}
+
+:root[data-code="dark"] #write pre.md-fences code.hljs {
+  color: #c9d1d9;
+}
+
+/* ---------------- 混合排版：宽元素向两侧突破 ----------------
+ *
+ * 段落保持舒适行宽（中文 35~45 字/行最好读），但表格、代码块、图表跟行宽
+ * 无关 —— 让它们向左右各突破 --bleed，把空白换成信息密度。
+ *
+ * 突破量是**固定像素**，所以开关侧栏时宽度不会跳动。唯一的例外是
+ * max-width 那道防溢出保护：窗口窄到元素快溢出时才会收缩。
+ *
+ * 居中的数学：#write 居中于容器，宽元素再以 #write 的内容宽为基准居中，
+ * 两次居中叠加后元素正好居中于容器，左右都不会溢出。
+ */
+
+/**
+ * 兜底：保证 #write 水平居中。
+ *
+ * 真正的 Typora 里 #write 外面还有一层容器负责居中，很多主题因此
+ * 根本不给 #write 写 margin（Lapis 就是这样）。我们没有那层容器，
+ * 不兜底的话正文会贴在 left=0，宽元素的负 margin 再一推，
+ * 每行开头就跑到窗口外面去了 —— 看起来像"内容被吃掉了"。
+ *
+ * 用 :where() 把特异性压到 0：主题自己设了 margin 就听主题的，
+ * 没设才轮到这条生效。
+ */
+:where(#write) {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#write {
+  --bleed: 200px;        /* 单侧突破量 */
+  --wide-guard: 24px;    /* 距正文区边缘至少留这么多 */
+}
+
+/* 只作用于 #write 的**直接**子元素。
+ * 用 `>` 有两个原因：
+ *  1. 防止嵌套累加 —— 嵌套在已突破元素里的代码块会再突破一次，宽度翻倍后溢出
+ *     （Mermaid 渲染失败时的错误块里就有一个 pre.md-fences，真的踩到过）
+ *  2. 语义上也更对 —— 列表项或引用块里的代码块不该冲破容器，那会破坏缩进层次 */
+#write > pre.md-fences,
+#write > figure.md-table-fig,
+#write > .md-mermaid {
+  width: calc(100% + 2 * var(--bleed));
+  max-width: calc(100cqw - 2 * var(--wide-guard));
+  margin-left: calc(
+    (100% - min(100% + 2 * var(--bleed), 100cqw - 2 * var(--wide-guard))) / 2
+  );
+  margin-right: 0;
+}
+
+#write figure.md-table-fig {
+  overflow-x: auto;
+}
+
+/* 表格自身撑满突破后的宽度，列才不会挤在左边 */
+#write figure.md-table-fig > table.md-table {
+  width: 100%;
+}
+
+/* Mermaid 渲染失败的错误块：里面的 pre 老实待在容器内，不参与突破 */
+#write .mermaid-error pre.md-fences {
+  width: auto;
+  max-width: 100%;
+  margin-left: 0;
+}
+
+#write img {
+  max-width: 100%;
+  height: auto;
+  cursor: zoom-in;
+}
+
+/* Mermaid
+ * 注意只设上下 margin：用 `margin: 1.2em 0` 的简写会把上面突破规则算好的
+ * margin-left 重置成 0（两条规则特异性相同，后出现的赢），
+ * 结果图表从段落左边缘起、向右溢出整个突破量。踩过一次。 */
+#write .md-mermaid {
+  margin-top: 1.2em;
+  margin-bottom: 1.2em;
+  text-align: center;
+}
+
+#write .md-mermaid svg {
+  max-width: 100%;
+  height: auto;
+}
+
+#write .md-mermaid-placeholder {
+  padding: 20px;
+  border: 1px dashed var(--shell-border);
+  border-radius: 6px;
+  color: var(--shell-fg-muted);
+  font-size: 13px;
+}
+
+#write .mermaid-error {
+  padding: 12px;
+  border: 1px solid #d1242f;
+  border-radius: 6px;
+  text-align: left;
+}
+
+#write .mermaid-error-title {
+  margin-bottom: 8px;
+  color: #d1242f;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* 滚动条：跟着亮暗模式走，默认那条在暗色主题下很扎眼 */
+.pane-body::-webkit-scrollbar,
+.content::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+.pane-body::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background-clip: content-box;
+  background-color: var(--shell-border);
+}
+
+.pane-body::-webkit-scrollbar-thumb:hover,
+.content::-webkit-scrollbar-thumb:hover {
+  background-color: var(--shell-fg-muted);
+}
+
+.pane-body::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -1,0 +1,28 @@
+{
+  "name": "junky-markdown-reader",
+  "version": "0.4.0",
+  "description": "A Typora-style Markdown reader for Windows",
+  "main": "src/main/main.js",
+  "author": "Tony Cheung",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.1",
+    "dompurify": "^3.2.2",
+    "highlight.js": "^11.10.0",
+    "markdown-it": "^14.1.0",
+    "markdown-it-anchor": "^9.2.0",
+    "markdown-it-attrs": "^4.3.1",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.4.1"
+  }
+}

@@ -1,0 +1,233 @@
+/**
+ * Night —— 暗色基线主题
+ *
+ * 与 github.css 结构一致，只是换了一套配色。
+ * 暗色下正文没有用纯白字（#e6edf3 而非 #fff），长时间阅读眼睛不容易累。
+ */
+
+body {
+  background-color: #1a1d21;
+  color: #ccd3da;
+  /* 末尾两个 emoji 字体是必要的回退：不加的话 ⏸ ★ ✓ 这类符号在
+     Windows 上会渲染成豆腐块（□） */
+  font-family: -apple-system, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei",
+               "PingFang SC", "Hiragino Sans GB", Roboto, sans-serif,
+               "Segoe UI Emoji", "Segoe UI Symbol";
+  font-size: 16px;
+  line-height: 1.78;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#write {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 46px 56px 60vh;
+  box-sizing: border-box;
+  word-wrap: break-word;
+}
+
+/* ---------------- 标题 ---------------- */
+
+#write h1,
+#write h2,
+#write h3,
+#write h4,
+#write h5,
+#write h6 {
+  margin: 1.6em 0 0.7em;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #e6edf3;
+}
+
+#write h1 {
+  margin-top: 0.2em;
+  padding-bottom: 0.35em;
+  border-bottom: 1px solid #363b42;
+  font-size: 2em;
+  letter-spacing: -0.01em;
+}
+
+#write h2 {
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #2c3137;
+  font-size: 1.55em;
+}
+
+#write h3 { font-size: 1.28em; }
+#write h4 { font-size: 1.1em; }
+#write h5 { font-size: 1em; }
+
+#write h6 {
+  font-size: 0.95em;
+  color: #8b949e;
+}
+
+/* ---------------- 段落与行内元素 ---------------- */
+
+#write p {
+  margin: 0 0 1.05em;
+}
+
+#write a {
+  color: #6cb0ff;
+  text-decoration: none;
+}
+
+#write a:hover {
+  text-decoration: underline;
+}
+
+#write strong {
+  font-weight: 600;
+  color: #f0f6fc;
+}
+
+#write em {
+  font-style: italic;
+}
+
+#write del {
+  color: #7d8590;
+}
+
+#write hr {
+  height: 1px;
+  margin: 2.2em 0;
+  border: 0;
+  background-color: #363b42;
+}
+
+#write mark {
+  padding: 0.1em 0.25em;
+  border-radius: 3px;
+  background-color: #4a3d00;
+  color: #f0e68c;
+}
+
+/* ---------------- 列表 ---------------- */
+
+#write ul,
+#write ol {
+  margin: 0 0 1.05em;
+  padding-left: 1.9em;
+}
+
+#write li {
+  margin: 0.3em 0;
+}
+
+#write li > ul,
+#write li > ol {
+  margin: 0.3em 0;
+}
+
+#write .task-list-item {
+  list-style: none;
+  margin-left: -1.5em;
+  padding-left: 0;
+}
+
+#write .task-list-item > input[type="checkbox"] {
+  margin: 0 0.5em 0 0;
+  vertical-align: -0.08em;
+  accent-color: #4c8fd8;
+}
+
+/* ---------------- 引用 ---------------- */
+
+#write blockquote {
+  margin: 0 0 1.05em;
+  padding: 0.15em 1.1em;
+  border-left: 4px solid #3f4650;
+  color: #99a2ac;
+}
+
+#write blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+/* ---------------- 代码 ---------------- */
+
+#write code.md-code,
+#write p code,
+#write li code,
+#write td code,
+#write h1 code, #write h2 code, #write h3 code,
+#write h4 code, #write h5 code, #write h6 code {
+  padding: 0.18em 0.4em;
+  border-radius: 5px;
+  background-color: rgba(110, 118, 129, 0.32);
+  font-family: "Cascadia Mono", Consolas, "SFMono-Regular", "Microsoft YaHei Mono", monospace;
+  font-size: 0.88em;
+}
+
+#write pre.md-fences {
+  margin: 0 0 1.2em;
+  padding: 14px 16px;
+  border: 1px solid #2f343b;
+  border-radius: 8px;
+  background-color: #24282e;
+  font-size: 0.88em;
+  line-height: 1.6;
+}
+
+#write pre.md-fences code {
+  padding: 0;
+  background: none;
+  font-family: "Cascadia Mono", Consolas, "SFMono-Regular", "Microsoft YaHei Mono", monospace;
+  font-size: inherit;
+}
+
+/* ---------------- 表格 ---------------- */
+
+#write figure.md-table-fig {
+  margin: 0 0 1.3em;
+}
+
+#write table.md-table {
+  border-collapse: collapse;
+  font-size: 0.94em;
+}
+
+#write table.md-table th,
+#write table.md-table td {
+  padding: 7px 13px;
+  border: 1px solid #363b42;
+}
+
+#write table.md-table th {
+  background-color: #262b31;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+#write table.md-table tr:nth-child(2n) td {
+  background-color: #21252a;
+}
+
+/* ---------------- 图片 ---------------- */
+
+#write img {
+  border-radius: 6px;
+}
+
+/* ---------------- 脚注 ---------------- */
+
+#write .footnotes {
+  margin-top: 3em;
+  padding-top: 1em;
+  border-top: 1px solid #363b42;
+  font-size: 0.9em;
+  color: #99a2ac;
+}
+
+#write .footnote-ref {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+#write .footnote-backref {
+  text-decoration: none;
+}

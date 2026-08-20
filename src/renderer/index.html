@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!--
+  CSP 说明：
+    default-src 'none'  一律拒绝，下面逐项放行
+    script-src  'self'  只跑我们自己的脚本（app://reader 同源），
+                        Markdown 里夹带的 <script> 一律执行不了。
+                        注意：这也意味着本文件里不能写内联 <script>。
+    style-src   需要 unsafe-inline：Mermaid 会注入内联样式
+    img-src     放行 md-asset:（本地图片）与 http(s):（文档里的网络图片）
+-->
+<meta http-equiv="Content-Security-Policy" content="
+  default-src 'none';
+  script-src 'self';
+  style-src 'self' 'unsafe-inline';
+  img-src 'self' md-asset: data: blob: https: http:;
+  font-src 'self' md-asset: data:;
+  media-src 'self' md-asset:;
+  connect-src 'self';
+">
+<title>Junky Markdown Reader</title>
+
+<!--
+  样式加载顺序有讲究：
+  1. typora-theme  Typora 主题，接管 #write 内部的一切排版
+  2. hljs-theme    代码高亮配色。必须排在主题**后面** —— 否则主题给
+                   .md-fences 设的文字色会盖掉 hljs 的默认色，代码里
+                   没有 token 类的那些字符就会糊在背景里看不见。
+                   它自带的背景色由 shell.css 清掉，代码块底色仍归主题管。
+  3. shell.css     外壳 UI（工具栏/侧栏），放最后以确保能压过主题里的 body 规则
+  4. code-links.css 源码跳转链接的徽章样式。是 #write 内部唯一的例外，
+                   必须排在主题后面才压得过 `#write a { color: ... }`
+-->
+<link id="typora-theme" rel="stylesheet" href="">
+<link id="hljs-theme" rel="stylesheet" href="">
+<link rel="stylesheet" href="styles/shell.css">
+<link rel="stylesheet" href="styles/code-links.css">
+</head>
+<body class="typora-export">
+
+<div class="app" id="app">
+
+  <header class="toolbar" id="toolbar">
+    <button class="tb-btn" id="btn-sidebar" title="文件树 (Ctrl+B)" aria-label="切换文件树">
+      <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 3.5h12M2 8h12M2 12.5h12" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg>
+    </button>
+
+    <button class="tb-btn" id="btn-open" title="打开文件 (Ctrl+O)">打开</button>
+    <button class="tb-btn" id="btn-open-folder" title="打开文件夹 (Ctrl+Shift+O)">文件夹</button>
+
+    <div class="tb-title" id="doc-title" title="">未打开文档</div>
+
+    <div class="tb-right">
+      <div class="tb-group" title="正文字号 (Ctrl + 滚轮)">
+        <button class="tb-btn tb-icon" id="btn-font-dec" aria-label="缩小字号">A−</button>
+        <span class="tb-readout" id="font-readout">16</span>
+        <button class="tb-btn tb-icon" id="btn-font-inc" aria-label="放大字号">A+</button>
+      </div>
+
+      <div class="tb-group" title="段落宽度 (Ctrl+Shift+← / →)&#10;表格与代码块始终自动加宽，不受此设置影响">
+        <button class="tb-btn tb-icon" id="btn-width-dec" aria-label="段落变窄">⇥⇤</button>
+        <span class="tb-readout tb-readout-wide" id="width-readout">主题</span>
+        <button class="tb-btn tb-icon" id="btn-width-inc" aria-label="段落变宽">⇤⇥</button>
+      </div>
+
+      <select class="tb-select" id="theme-select" title="Typora 主题"></select>
+
+      <button class="tb-btn tb-icon" id="btn-mode" title="切换亮/暗模式 (Ctrl+Shift+L)" aria-label="切换亮暗模式">
+        <span id="mode-icon">☾</span>
+      </button>
+
+      <button class="tb-btn" id="btn-edit" title="源码编辑模式 (Ctrl+E)">编辑</button>
+      <button class="tb-btn" id="btn-outline" title="大纲 (Ctrl+R)">大纲</button>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <!-- 左：文件树 -->
+    <aside class="pane sidebar" id="sidebar">
+      <div class="pane-head">
+        <span class="pane-title" id="workspace-name">未打开文件夹</span>
+        <button class="pane-btn" id="btn-refresh-tree" title="刷新">⟳</button>
+      </div>
+      <div class="pane-body" id="filetree">
+        <div class="pane-empty">
+          还没有打开文件夹<br>
+          <button class="link-btn" id="btn-pick-folder">选择一个文件夹</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 中：正文 -->
+    <main class="content" id="content" tabindex="-1">
+
+      <!--
+        查找条（Ctrl+F）。
+        外面这层 dock 是 position:sticky + height:0 的空壳：既不占版面高度、
+        不会把正文往下推，又能随滚动一直钉在正文区右上角。
+      -->
+      <div class="findbar-dock" id="findbar-dock" hidden>
+        <div class="findbar">
+          <svg class="find-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M10.2 10.2 L14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+          <input class="find-input" id="find-input" type="text" placeholder="在文档中查找"
+                 spellcheck="false" autocomplete="off" aria-label="在文档中查找">
+          <span class="find-count" id="find-count">0/0</span>
+          <button class="find-btn" id="find-prev" title="上一个 (Shift+Enter / Shift+F3)" aria-label="上一个">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 10 L8 5 L13 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="find-btn" id="find-next" title="下一个 (Enter / F3)" aria-label="下一个">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 6 L8 11 L13 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button class="find-btn" id="find-close" title="关闭 (Esc)" aria-label="关闭查找">
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M4 4 L12 12 M12 4 L4 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!--
+        源文件行号槽。绝对定位在正文区左边缘，随内容一起滚动。
+        里面的号码由 linenum.js 逐个量位置后生成，不参与正文排版。
+      -->
+      <div class="linenum-gutter" id="linenum-gutter" hidden aria-hidden="true"></div>
+
+      <!-- #write 是 Typora 主题唯一认识的正文容器，不要改这个 id -->
+      <div id="write"></div>
+
+      <!-- 空状态 -->
+      <div class="welcome" id="welcome">
+        <div class="welcome-inner">
+          <h1>Junky Markdown Reader</h1>
+          <p class="welcome-sub">Typora 风格的 Markdown 阅读器</p>
+          <div class="welcome-actions">
+            <button class="primary-btn" id="btn-welcome-open">打开文件…</button>
+            <button class="ghost-btn" id="btn-welcome-folder">打开文件夹…</button>
+          </div>
+          <p class="welcome-hint">也可以直接把 .md 文件拖进这个窗口</p>
+          <div class="welcome-recent" id="welcome-recent"></div>
+        </div>
+      </div>
+    </main>
+
+    <!--
+      中（编辑模式时替换正文区）：源码编辑器
+      行号槽 + textarea 并排；隐藏的 mirror 与 textarea 样式完全一致，
+      用来量出每个源码行在软换行之后的真实位置（见 editor.js）。
+    -->
+    <section class="editor" id="editor" hidden>
+      <div class="editor-bar">
+        <span class="editor-hint">源码编辑模式 · 改完按 Ctrl+S 保存并返回</span>
+        <span class="editor-status" id="editor-status">已保存</span>
+        <button class="tb-btn" id="editor-save" title="保存但留在编辑模式">保存</button>
+        <button class="tb-btn" id="editor-done" title="保存并返回阅读 (Ctrl+S)">保存并返回</button>
+        <button class="tb-btn" id="editor-cancel" title="放弃修改返回阅读 (Esc)">取消</button>
+      </div>
+      <div class="editor-body">
+        <div class="editor-gutter" id="editor-gutter" aria-hidden="true">
+          <div class="editor-gutter-inner" id="editor-gutter-inner"></div>
+        </div>
+        <textarea class="editor-input" id="editor-input" spellcheck="false"
+                  autocomplete="off" autocorrect="off" autocapitalize="off"
+                  aria-label="Markdown 源码"></textarea>
+        <div class="editor-mirror" id="editor-mirror" aria-hidden="true"></div>
+      </div>
+    </section>
+
+    <!-- 右：大纲 -->
+    <aside class="pane outline" id="outline">
+      <div class="pane-head">
+        <span class="pane-title">大纲</span>
+      </div>
+      <div class="pane-body" id="outline-list">
+        <div class="pane-empty">没有标题</div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- 拖放遮罩 -->
+  <div class="drop-overlay" id="drop-overlay"><div class="drop-hint">松手即打开</div></div>
+
+  <!-- 提示条 -->
+  <div class="toast" id="toast"></div>
+
+</div>
+
+<!-- DOMPurify：清洗 Markdown 里夹带的裸 HTML。必须在渲染之前就位，同步加载。 -->
+<script src="../../node_modules/dompurify/dist/purify.min.js"></script>
+
+<!-- 应用脚本。Mermaid（3.4MB）不在这里加载，等文档里真有图表时才按需注入。 -->
+<script src="sanitize.js"></script>
+<script src="theme.js"></script>
+<script src="outline.js"></script>
+<script src="filetree.js"></script>
+<script src="search.js"></script>
+<script src="linenum.js"></script>
+<script src="editor.js"></script>
+<script src="mermaid-render.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
