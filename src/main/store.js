@@ -23,6 +23,10 @@ const DEFAULTS = {
   showLineNumbers: false,     // 正文左侧的源文件行号槽（标的是每个块在 .md 里的起始行）
   workspace: null,            // 当前打开的工作区目录
   recentFiles: [],            // 最近打开的文档（最多 15 条）
+  // 顶部标签页。存的是路径数组 + 当前活动项，重启后原样恢复。
+  // 预览标签（文件树单击开的那个）不落盘 —— 它本来就是临时的。
+  openTabs: [],
+  activeTab: null,
   windowBounds: { width: 1200, height: 820 }
 };
 

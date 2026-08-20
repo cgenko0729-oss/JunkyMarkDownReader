@@ -46,7 +46,13 @@
 
     const name = document.createElement('span');
     name.className = 'tree-name';
-    name.textContent = item.type === 'file' ? item.name.replace(/\.[^.]+$/, '') : item.name;
+    // .md 的扩展名去掉（一棵树里全一样，看不出信息量），.txt 必须留着 ——
+    // 同一个目录里同名的 notes.md 和 notes.txt 很常见，不留就分不清谁是谁
+    const isText = item.kind === 'text' || /\.txt$/i.test(item.name);
+    name.textContent = item.type === 'file' && !isText
+      ? item.name.replace(/\.[^.]+$/, '')
+      : item.name;
+    if (item.type === 'file' && isText) node.classList.add('tree-text');
 
     row.appendChild(arrow);
     row.appendChild(name);
@@ -145,7 +151,7 @@
       return;
     }
     if (!result.items.length) {
-      treeEl().innerHTML = '<div class="pane-empty">这个文件夹里没有 Markdown 文件</div>';
+      treeEl().innerHTML = '<div class="pane-empty">这个文件夹里没有可打开的文档</div>';
       return;
     }
 
@@ -159,6 +165,8 @@
     if (state.root) {
       // 清掉 loaded 标记，让展开的目录重新拉取
       setRoot(state.root);
+      // 用户点刷新，多半是因为磁盘上文件有增减 —— Ctrl+P 的索引一并作废
+      if (global.QuickOpen) global.QuickOpen.invalidate();
     }
   }
 

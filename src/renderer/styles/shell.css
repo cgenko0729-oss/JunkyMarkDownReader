@@ -177,6 +177,121 @@ body {
   cursor: pointer;
 }
 
+/* ---------------- 标签栏 ----------------
+ *
+ * 夹在工具栏和主体之间的一条。标签多了横向滚动，滚动条刻意藏掉 ——
+ * 整条才 32px 高，一条横滚动条要吃掉三分之一。用滚轮就能横向翻（见 tabs.js）。
+ */
+
+.tabbar {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  background: var(--shell-bg);
+  color: var(--shell-fg);
+  border-bottom: 1px solid var(--shell-border);
+  font: 12.5px/1.4 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+  user-select: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.tabbar::-webkit-scrollbar {
+  height: 0;
+}
+
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 84px;
+  max-width: 220px;
+  padding: 0 6px 0 10px;
+  border-right: 1px solid var(--shell-border);
+  background: transparent;
+  color: var(--shell-fg-muted);
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: var(--shell-hover);
+}
+
+.tab.active {
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+}
+
+/* 当前标签用顶部一条高亮线标出来，比整块换底色安静得多 */
+.tab.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 2px;
+  background: var(--shell-accent);
+}
+
+/* 预览标签用斜体，跟 VSCode 一致：提示「再点别的文件我就被顶掉了」 */
+.tab.preview .tab-label {
+  font-style: italic;
+}
+
+.tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* .txt 标签前挂一个 T 徽章，跟 Markdown 一眼区分 */
+.tab.tab-text .tab-label::before {
+  content: "T";
+  display: inline-block;
+  margin-right: 5px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--shell-hover);
+  color: var(--shell-fg-muted);
+  font: 600 9px/1.6 ui-monospace, Consolas, monospace;
+  font-style: normal;
+  vertical-align: 1px;
+}
+
+.tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: 15px/1 "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+}
+
+/* 平时不显示叉，鼠标移上去或是当前标签才露出来，免得一排叉很吵 */
+.tab:hover .tab-close,
+.tab.active .tab-close {
+  opacity: 0.6;
+}
+
+/* 这条要排在上面两条后面：选择器权重相同，靠顺序取胜 */
+.tab .tab-close:hover {
+  background: var(--shell-hover);
+  opacity: 1;
+}
+
 /* ---------------- 侧栏（文件树 / 大纲通用） ---------------- */
 
 .pane {
@@ -319,6 +434,12 @@ body {
   color: var(--shell-fg-muted);
   font-size: 12px;
   font-style: italic;
+}
+
+/* .txt 在文件树里保留扩展名（见 filetree.js），再配等宽体现「这是纯文本」 */
+.tree-node.tree-text > .tree-row > .tree-name {
+  font-family: ui-monospace, Consolas, "Courier New", monospace;
+  font-size: 12px;
 }
 
 /* ---------------- 大纲 ---------------- */
@@ -766,6 +887,138 @@ body.show-line-numbers .content {
   background: var(--shell-hover);
 }
 
+/* ---------------- 快速切换面板（Ctrl+P） ----------------
+ *
+ * 面板靠上放而不是垂直居中：列表是向下展开的，居中的话结果一多
+ * 整块就往下跑，视线得跟着来回移动。
+ */
+
+.quickopen {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 12vh;
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.qo-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 82vw);
+  border: 1px solid var(--shell-border);
+  border-radius: 8px;
+  background: var(--shell-bg-raised);
+  color: var(--shell-fg);
+  box-shadow: 0 12px 40px var(--shell-shadow);
+  overflow: hidden;
+  font: 13px/1.5 "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+.qo-input {
+  padding: 11px 14px;
+  border: 0;
+  border-bottom: 1px solid var(--shell-border);
+  background: transparent;
+  color: var(--shell-fg);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+.qo-list {
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.qo-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+.qo-row.current {
+  background: var(--shell-active-bg);
+}
+
+.qo-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: var(--shell-hover);
+  color: var(--shell-fg-muted);
+  font: 600 10px/1 ui-monospace, Consolas, monospace;
+}
+
+.qo-icon-text {
+  color: var(--shell-accent);
+}
+
+.qo-main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.qo-name {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.qo-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--shell-fg-muted);
+  font-size: 11.5px;
+}
+
+/* 命中的字符只换颜色不加底色 —— 一行里可能散落十几处，加底色会花 */
+.qo-row mark {
+  background: transparent;
+  color: var(--shell-accent);
+  font-weight: 600;
+}
+
+.qo-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 9px;
+  background: var(--shell-hover);
+  color: var(--shell-fg-muted);
+  font-size: 10.5px;
+}
+
+.qo-badge-tab {
+  background: var(--shell-active-bg);
+  color: var(--shell-accent);
+}
+
+.qo-empty,
+.qo-hint {
+  padding: 10px 14px;
+  color: var(--shell-fg-muted);
+  font-size: 11.5px;
+}
+
+.qo-hint {
+  border-top: 1px solid var(--shell-border);
+}
+
 /* ---------------- 浮层：拖放 / 提示 / 图片放大 ---------------- */
 
 .drop-overlay {
@@ -863,6 +1116,37 @@ body.show-line-numbers .content {
 
 :root[data-code="dark"] #write pre.md-fences code.hljs {
   color: #c9d1d9;
+}
+
+/* ---------------- 纯文本文档（.txt） ----------------
+ *
+ * 这是「外壳不碰 #write 内部排版」那条铁律唯一站得住的例外：
+ * .txt 根本没有 Markdown 结构，Typora 主题在这里无事可做，而等宽字体 +
+ * 原样保留换行缩进，正是选纯文本模式的全部意义。
+ * 页边距、底色仍然归主题管，所以换主题时 .txt 照样跟着变。
+ */
+
+#write .plaintext {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC",
+               "Microsoft YaHei", "Courier New", monospace;
+  font-size: 0.95em;
+  line-height: 1.65;
+  tab-size: 4;
+}
+
+#write .plaintext .txt-line {
+  margin: 0;
+  /* pre-wrap：空格与缩进原样保留，超长行软换行而不是撑出横向滚动条 */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  /* 空行没有任何内容，高度靠这条撑起来 ——
+     塞 <br> 或零宽空格都会污染查找结果和复制出来的文本 */
+  min-height: 1.65em;
+}
+
+/* 超大文件退化成单块时不需要这个兜底（见 main/plaintext.js 的 PER_LINE_LIMIT） */
+#write .plaintext-degraded .txt-line {
+  min-height: 0;
 }
 
 /* ---------------- 混合排版：宽元素向两侧突破 ----------------

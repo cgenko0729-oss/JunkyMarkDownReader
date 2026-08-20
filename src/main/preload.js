@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('api', {
   /** 列出目录的一层内容（文件树懒展开用） */
   listDir: (dirPath) => ipcRenderer.invoke('file:list-dir', dirPath),
 
+  /**
+   * 递归索引整个工作区，给快速切换面板（Ctrl+P）用。
+   * 主进程侧带缓存，可以放心多次调用；force 为 true 时强制重扫。
+   */
+  scanWorkspace: (root, force) => ipcRenderer.invoke('workspace:scan', { root, force }),
+
   /** 编辑模式：取出整篇 Markdown 原文 / 把改动整篇写回 */
   readSource: (filePath) => ipcRenderer.invoke('doc:read-source', filePath),
   writeSource: (payload) => ipcRenderer.invoke('doc:write-source', payload),

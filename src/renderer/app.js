@@ -12,9 +12,14 @@
 
   const state = {
     settings: null,
-    doc: null,                    // 当前文档 { path, name, html, outline, ... }
+    doc: null,                    // 当前文档 { path, name, kind, html, outline, ... }
     scrollMemory: new Map(),      // 文档路径 → 上次的滚动位置
-    dragDepth: 0                  // dragenter/dragleave 配对计数，防遮罩闪烁
+    dragDepth: 0,                 // dragenter/dragleave 配对计数，防遮罩闪烁
+    /**
+     * 加载序号。切标签和「退出编辑模式后自动重渲染」可能同时在飞，
+     * 谁后发起谁作数 —— 否则会出现切过去又被旧文档顶回来。
+     */
+    loadToken: 0
   };
 
   const MIN_FONT = 11;
@@ -65,6 +70,9 @@
   }
 
   const isMarkdownPath = (p) => /\.(md|markdown|mdown|mkd|mdtext)$/i.test(p || '');
+  const isPlainTextPath = (p) => /\.txt$/i.test(p || '');
+  /** 本应用能在窗口内打开的文档类型（与主进程的 files.isSupportedFile 对齐） */
+  const isSupportedPath = (p) => isMarkdownPath(p) || isPlainTextPath(p);
   const isCSharpPath = (p) => /\.cs$/i.test(p || '');
 
   /**
@@ -164,12 +172,17 @@
 
   function applyPanes() {
     const showSidebar = !!state.settings.showSidebar;
-    const showOutline = !!state.settings.showOutline;
+
+    // 纯文本没有 Markdown 标题，大纲永远是空的，开着只是白占一列 ——
+    // 自动收起，但**不动用户的设置**，切回 .md 时它自己会回来
+    const isText = !!(state.doc && state.doc.kind === 'text');
+    const showOutline = !!state.settings.showOutline && !isText;
 
     $('sidebar').hidden = !showSidebar;
     $('outline').hidden = !showOutline;
     $('btn-sidebar').classList.toggle('active', showSidebar);
     $('btn-outline').classList.toggle('active', showOutline);
+    $('btn-outline').disabled = isText;
 
     setTimeout(relayout, 60);
   }
@@ -184,6 +197,10 @@
   }
 
   function toggleOutline() {
+    if (state.doc && state.doc.kind === 'text') {
+      toast('纯文本没有标题，大纲不可用');
+      return;
+    }
     patchSettings({ showOutline: !state.settings.showOutline });
     applyPanes();
   }
@@ -221,29 +238,49 @@
    * --------------------------------------------------------------- */
 
   /**
+   * 打开一份文档 —— 对外的统一入口。
+   *
+   * 它只负责「让标签页知道该显示谁」，真正的读取渲染在 loadDocument 里，
+   * 由 Tabs 回调过来。编辑模式的未保存确认也归 Tabs 的 canLeave 钩子管。
+   *
    * @param {string} filePath
-   * @param {object} [opts] { keepScroll: boolean, hash: string }
+   * @param {object} [opts] { preview, keepScroll, hash, sourceLine, fromEditor }
+   * @returns {Promise<boolean>}
    */
-  async function openDocument(filePath, opts = {}) {
-    if (!filePath) return;
+  function openDocument(filePath, opts = {}) {
+    if (!filePath) return Promise.resolve(false);
+    return global.Tabs.open(filePath, opts);
+  }
 
-    // 编辑模式下切到别的文档：先让编辑器把未保存的改动问清楚。
-    // 用户选择留下就整个取消这次打开。
-    if (global.Editor.isOn() && !opts.fromEditor) {
-      if (!global.Editor.close()) return;
-    }
+  /**
+   * 真正把文档读进来并渲染。**只由 Tabs 调用**，别的地方一律走 openDocument。
+   *
+   * @returns {Promise<boolean>} 失败时 Tabs 会把对应的标签摘掉
+   */
+  async function loadDocument(filePath, opts = {}) {
+    if (!filePath) return false;
+
+    const token = ++state.loadToken;
 
     const previousTop = $('content').scrollTop;
     const isSameDoc = !!(state.doc && state.doc.path === filePath);
     saveScroll();
 
     const result = await global.api.loadFile(filePath);
+
+    // 这次加载已经被更晚的一次取代了，结果直接丢掉（见 state.loadToken）
+    if (token !== state.loadToken) return true;
+
     if (!result || result.error) {
       toast('打开失败：' + ((result && result.error) || '未知错误'));
-      return;
+      return false;
     }
 
     state.doc = result;
+
+    // 纯文本的排版由 #write .plaintext 那组规则接管（见 shell.css）；
+    // body 上这个标记是给外壳自己用的状态位，applyPanes 靠它决定收不收大纲
+    document.body.classList.toggle('text-doc', result.kind === 'text');
 
     // 换文档就收起查找条；同一篇原地重载则保留，等 DOM 换完再重跑。
     // 重跑是必须的：老的 Range 指向的文本节点已经被 innerHTML 整个换掉了。
@@ -259,6 +296,7 @@
 
     applyTypography();
     global.Outline.render(result.outline);
+    applyPanes();                  // 纯文本要把大纲收起来，普通文档则恢复原状
     global.LineNumbers.measure();
     global.FileTree.setActiveFile(result.path);
 
@@ -295,6 +333,32 @@
 
     syncCodeTheme();
     warnIfOverflowing();
+
+    // 超大纯文本退化成了单块，行号槽只剩一个「1」，说一声免得以为是坏了
+    if (result.degraded) {
+      toast('这个文件太大，已按整块显示，逐行行号不可用', 4000);
+    }
+
+    return true;
+  }
+
+  /** 最后一个标签也关掉了：清空正文，回到欢迎页 */
+  function showWelcome() {
+    state.doc = null;
+    state.loadToken++;             // 让还在飞的加载作废，别把正文又填回来
+
+    global.Search.reset();
+    $('write').replaceChildren();
+    $('welcome').hidden = false;
+    $('doc-title').textContent = '未打开文档';
+    $('doc-title').title = '';
+
+    document.body.classList.remove('text-doc');
+    global.Outline.clear();
+    global.LineNumbers.measure();
+    global.FileTree.setActiveFile(null);
+    renderRecent();
+    applyPanes();
   }
 
   /**
@@ -380,11 +444,13 @@
     return false;
   }
 
-  /** 重新加载当前文档，保持滚动位置 */
+  /**
+   * 重新加载当前文档，保持滚动位置。
+   * 直接走 loadDocument：标签集合根本没变，没必要惊动 Tabs。
+   */
   function reloadDocument() {
     if (state.doc && state.doc.path) {
-      // fromEditor：这次重载是编辑器退出后自己发起的，不要再去问一遍未保存确认
-      openDocument(state.doc.path, { keepScroll: true, fromEditor: true });
+      loadDocument(state.doc.path, { keepScroll: true });
     }
   }
 
@@ -403,6 +469,7 @@
     patchSettings({ workspace: dir, showSidebar: true });
     applyPanes();
     global.FileTree.setRoot(dir);
+    global.QuickOpen.invalidate();   // 换了工作区，Ctrl+P 的索引作废
   }
 
   /** 拖进来一个文件夹时走这里 */
@@ -415,6 +482,7 @@
     patchSettings({ workspace: dir, showSidebar: true });
     applyPanes();
     global.FileTree.setRoot(dir);
+    global.QuickOpen.invalidate();
   }
 
   /* ---------------------------------------------------------------
@@ -474,7 +542,7 @@
         event.preventDefault();
         const target = link.dataset.localPath;
         if (!target) return;
-        if (isMarkdownPath(target)) {
+        if (isSupportedPath(target)) {
           openDocument(target, { hash: link.dataset.localHash });
         } else if (isCSharpPath(target)) {
           // [L550](Setsuna/SkillData.cs#L550) → 用 VS 2022 打开并跳到该行
@@ -566,7 +634,7 @@
         return;
       }
 
-      if (isMarkdownPath(filePath)) openDocument(filePath);
+      if (isSupportedPath(filePath)) openDocument(filePath);
       else setWorkspace(filePath);   // 大概是个文件夹，试着当工作区打开
     });
   }
@@ -641,13 +709,15 @@
     }
     // 编辑模式下查找条没有意义（查的是渲染后的正文），先收起来
     global.Search.reset();
+    // 开始编辑了，预览标签就该固定下来 —— 不然点一下文件树改动就没了着落
+    global.Tabs.pin();
     global.Editor.open(state.doc.path, readingLine());
   }
 
   /** 退出编辑模式后：重新渲染，并回到光标所在那一行对应的位置 */
   function onEditorExit(caretLine) {
     if (!state.doc) return;
-    openDocument(state.doc.path, { fromEditor: true, sourceLine: caretLine });
+    loadDocument(state.doc.path, { sourceLine: caretLine });
   }
 
   /**
@@ -681,6 +751,20 @@
       return;
     }
     global.Search.open();
+  }
+
+  /* ---------------------------------------------------------------
+   * 快速切换（Ctrl+P）
+   * --------------------------------------------------------------- */
+
+  function toggleQuickOpen() {
+    if (global.QuickOpen.isOpen()) {
+      global.QuickOpen.close();
+      return;
+    }
+    // 查找条和快速切换都抢焦点，不能同时开着
+    global.Search.reset();
+    global.QuickOpen.open(state.settings);
   }
 
   /* ---------------------------------------------------------------
@@ -736,6 +820,24 @@
         case 'find':
           openFind();
           break;
+        case 'quick-open':
+          toggleQuickOpen();
+          break;
+        case 'tab-next':
+          global.Tabs.next();
+          break;
+        case 'tab-prev':
+          global.Tabs.prev();
+          break;
+        case 'tab-close':
+          global.Tabs.close();
+          break;
+        case 'tab-close-others':
+          global.Tabs.closeOthers();
+          break;
+        case 'tab-close-all':
+          global.Tabs.closeAll();
+          break;
         case 'find-next':
           if (global.Search.isOpen()) global.Search.next();
           else openFind();
@@ -776,7 +878,19 @@
     const themes = await global.api.listThemes();
 
     global.Theme.init(state.settings, themes, onThemeChange);
-    global.FileTree.init((filePath) => openDocument(filePath));
+
+    // 文件树单击 = 预览标签（斜体，会被下一次单击顶掉），跟 VSCode 一致
+    global.FileTree.init((filePath) => openDocument(filePath, { preview: true }));
+
+    global.Tabs.init({
+      onOpen: loadDocument,
+      onChange: patchSettings,
+      onEmpty: showWelcome,
+      // 编辑模式下换文档：先让编辑器把未保存的改动问清楚，用户选择留下就整个取消
+      canLeave: (opts) =>
+        !global.Editor.isOn() || !!opts.fromEditor || global.Editor.close()
+    });
+    global.QuickOpen.attach((filePath) => openDocument(filePath));
     global.Outline.attach();
     global.Search.attach();
     global.LineNumbers.attach();
@@ -798,10 +912,26 @@
     // 监听挂好之后才去领启动参数里的文档。
     // 反过来（等主进程推送）会有竞态：ready-to-show 可能早于这里，消息就丢了。
     const pending = await global.api.getPendingDocument();
-    if (pending) openDocument(pending);
+
+    if (pending) {
+      // 双击文件启动：上次的标签照样恢复出来，但不去加载它们 ——
+      // 用户要看的是刚双击的这个，先渲染别的纯属浪费
+      await global.Tabs.restore(state.settings.openTabs, state.settings.activeTab, true);
+      openDocument(pending);
+    } else {
+      await global.Tabs.restore(state.settings.openTabs, state.settings.activeTab);
+    }
   }
 
-  global.App = { openDocument, openFile, openFolder, reloadDocument, openFind, toast };
+  global.App = {
+    openDocument,
+    openFile,
+    openFolder,
+    reloadDocument,
+    openFind,
+    toggleQuickOpen,
+    toast
+  };
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);

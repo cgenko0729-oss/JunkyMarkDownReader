@@ -12,6 +12,7 @@ const protocols = require('./protocols');
 const store = require('./store');
 const files = require('./file-service');
 const markdown = require('./markdown');
+const plaintext = require('./plaintext');
 const codeEditor = require('./code-editor');
 
 const APP_ROOT = app.getAppPath();
@@ -21,7 +22,7 @@ const THEMES_DIR = path.join(APP_ROOT, 'themes');
 protocols.registerSchemes();
 
 let mainWindow = null;
-/** 启动参数里带的文件（双击 .md 打开的场景），等渲染进程来取 */
+/** 启动参数里带的文件（双击 .md / .txt 打开的场景），等渲染进程来取 */
 let pendingOpenPath = null;
 /**
  * 渲染进程是否已经完成初始化并挂好了 IPC 监听。
@@ -40,17 +41,17 @@ let currentDocPath = null;
  * --------------------------------------------------------------- */
 
 /**
- * 从命令行参数里挑出要打开的 Markdown 文件。
+ * 从命令行参数里挑出要打开的文件（.md 系列或 .txt）。
  * 打包后双击 .md：argv = [app.exe, C:\path\to\file.md]
  * 开发时 electron .：argv = [electron.exe, ., ...]
  */
-function markdownFromArgv(argv) {
+function documentFromArgv(argv) {
   const args = argv.slice(app.isPackaged ? 1 : 2);
   for (const arg of args) {
     if (!arg || arg.startsWith('-')) continue;
     try {
       const abs = path.resolve(arg);
-      if (files.isMarkdownFile(abs) && fs.statSync(abs).isFile()) return abs;
+      if (files.isSupportedFile(abs) && fs.statSync(abs).isFile()) return abs;
     } catch { /* 不是有效路径，跳过 */ }
   }
   return null;
@@ -64,7 +65,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', (_event, argv) => {
-    const target = markdownFromArgv(argv);
+    const target = documentFromArgv(argv);
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.focus();
@@ -226,6 +227,19 @@ function buildMenu() {
       ]
     },
     {
+      label: '标签页(&T)',
+      submenu: [
+        { label: '快速切换…', accelerator: 'CmdOrCtrl+P', click: () => sendCommand('quick-open') },
+        { type: 'separator' },
+        { label: '下一个标签页', accelerator: 'CmdOrCtrl+Tab', click: () => sendCommand('tab-next') },
+        { label: '上一个标签页', accelerator: 'CmdOrCtrl+Shift+Tab', click: () => sendCommand('tab-prev') },
+        { type: 'separator' },
+        { label: '关闭标签页', accelerator: 'CmdOrCtrl+W', click: () => sendCommand('tab-close') },
+        { label: '关闭其他标签页', click: () => sendCommand('tab-close-others') },
+        { label: '关闭全部标签页', accelerator: 'CmdOrCtrl+Shift+W', click: () => sendCommand('tab-close-all') }
+      ]
+    },
+    {
       label: '查找(&S)',
       submenu: [
         { label: '在文档中查找…', accelerator: 'CmdOrCtrl+F', click: () => sendCommand('find') },
@@ -307,10 +321,12 @@ function buildMenu() {
 
 async function pickFile() {
   const result = await dialog.showOpenDialog(mainWindow, {
-    title: '打开 Markdown 文件',
+    title: '打开文档',
     properties: ['openFile'],
     filters: [
-      { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd'] },
+      { name: '支持的文档', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mdtext', 'txt'] },
+      { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mdtext'] },
+      { name: '纯文本', extensions: ['txt'] },
       { name: '所有文件', extensions: ['*'] }
     ]
   });
@@ -330,6 +346,7 @@ async function pickFolder() {
     const dir = result.filePaths[0];
     protocols.allowRoot(dir);
     store.set({ workspace: dir });
+    files.invalidateScanCache();
     return dir;
   }
   return null;
@@ -370,7 +387,12 @@ function registerIpc() {
       // 文档所在目录加入白名单，其中的图片才能通过 md-asset 加载
       protocols.allowRoot(path.dirname(abs));
 
-      const { html, outline, hasMermaid } = markdown.render(source, abs);
+      // .txt 走纯文本渲染器：不解析任何 Markdown 语法（见 main/plaintext.js）
+      const kind = files.docKind(abs);
+      const rendered = kind === 'text'
+        ? plaintext.render(source)
+        : markdown.render(source, abs);
+      const { html, outline, hasMermaid } = rendered;
 
       currentDocPath = abs;
       store.pushRecent(abs);
@@ -387,9 +409,12 @@ function registerIpc() {
         path: abs,
         name: path.basename(abs),
         dir: path.dirname(abs),
+        kind,                      // 'markdown' | 'text'
         html,
         outline,
         hasMermaid,
+        // 纯文本超大文件会退化成单块（失去逐行行号），渲染进程据此提示用户
+        degraded: !!rendered.degraded,
         size: stat.size,
         mtime: stat.mtimeMs
       };
@@ -463,6 +488,21 @@ function registerIpc() {
     return files.listDirectory(abs);
   });
 
+  /**
+   * 递归索引工作区里所有能打开的文档，给快速切换面板（Ctrl+P）用。
+   * 结果在 file-service 里带缓存，渲染进程可以放心多次调用。
+   */
+  ipcMain.handle('workspace:scan', async (_event, payload) => {
+    const { root, force } = payload || {};
+    const dir = root || store.get('workspace');
+    if (!dir) return { items: [], truncated: false, root: null };
+    try {
+      return await files.scanWorkspace(dir, !!force);
+    } catch (err) {
+      return { items: [], truncated: false, root: dir, error: err.message };
+    }
+  });
+
   ipcMain.handle('settings:get', () => store.getAll());
 
   ipcMain.handle('settings:set', (_event, patch) => {
@@ -507,7 +547,7 @@ function registerIpc() {
  * 生命周期
  * --------------------------------------------------------------- */
 
-pendingOpenPath = markdownFromArgv(process.argv);
+pendingOpenPath = documentFromArgv(process.argv);
 
 // macOS：通过「用此程序打开」传进来的文件（只做 Windows，但留着无害）
 app.on('open-file', (event, filePath) => {

@@ -76,6 +76,12 @@
     </div>
   </header>
 
+  <!--
+    标签栏。空的时候整条隐藏（hidden 由 tabs.js 控制），
+    正文区高度靠 flex 自适应，不需要在 CSS 里写死高度。
+  -->
+  <div class="tabbar" id="tabbar" role="tablist" aria-label="打开的文档" hidden></div>
+
   <div class="body">
 
     <!-- 左：文件树 -->
@@ -139,7 +145,7 @@
             <button class="primary-btn" id="btn-welcome-open">打开文件…</button>
             <button class="ghost-btn" id="btn-welcome-folder">打开文件夹…</button>
           </div>
-          <p class="welcome-hint">也可以直接把 .md 文件拖进这个窗口</p>
+          <p class="welcome-hint">也可以直接把 .md / .txt 文件拖进这个窗口 · Ctrl+P 快速切换</p>
           <div class="welcome-recent" id="welcome-recent"></div>
         </div>
       </div>
@@ -181,6 +187,19 @@
 
   </div>
 
+  <!--
+    快速切换面板（Ctrl+P）。overlay 铺满窗口用来接「点外面关闭」，
+    面板本身靠上放 —— 列表向下展开时视线不用来回跑。
+  -->
+  <div class="quickopen" id="quickopen" hidden>
+    <div class="qo-panel" role="dialog" aria-label="快速切换文档">
+      <input class="qo-input" id="quickopen-input" type="text" spellcheck="false"
+             autocomplete="off" placeholder="输入文件名或路径片段…" aria-label="快速切换文档">
+      <div class="qo-list" id="quickopen-list" role="listbox"></div>
+      <div class="qo-hint" id="quickopen-hint"></div>
+    </div>
+  </div>
+
   <!-- 拖放遮罩 -->
   <div class="drop-overlay" id="drop-overlay"><div class="drop-hint">松手即打开</div></div>
 
@@ -200,6 +219,8 @@
 <script src="search.js"></script>
 <script src="linenum.js"></script>
 <script src="editor.js"></script>
+<script src="tabs.js"></script>
+<script src="quickopen.js"></script>
 <script src="mermaid-render.js"></script>
 <script src="app.js"></script>
 </body>
