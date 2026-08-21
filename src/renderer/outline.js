@@ -52,8 +52,24 @@
       const node = document.createElement('div');
       node.className = `outline-item level-${item.level}`;
       node.style.paddingLeft = `${8 + (item.level - minLevel) * 14}px`;
-      node.textContent = item.text || '(无标题)';
+
+      // 文字单独包一层：悬停展开时要把它变成绝对定位的浮层，
+      // 直接操作 .outline-item 会连带影响缩进和高亮背景
+      const text = document.createElement('span');
+      text.className = 'outline-text';
+      text.textContent = item.text || '(无标题)';
+      node.appendChild(text);
+
+      // title 留着：拖到窄处时系统提示仍是最后的兜底
       node.title = item.text || '';
+
+      // 只给真的被截断的行加 truncated —— 短标题也浮个白框出来纯属噪音。
+      // 放在 pointerenter 里量而不是渲染时量：渲染那一刻侧栏可能还没布局完，
+      // 而且用户随时会拖宽侧栏，截断与否是会变的。
+      node.addEventListener('pointerenter', () => {
+        node.classList.toggle('truncated', text.scrollWidth > text.clientWidth + 1);
+      });
+
       node.addEventListener('click', () => jumpTo(index));
       container.appendChild(node);
       return node;

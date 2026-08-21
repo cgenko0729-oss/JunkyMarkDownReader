@@ -98,6 +98,13 @@
       </div>
     </aside>
 
+    <!--
+      文件树 / 正文 之间的拖拽条。本体宽度为 0，热区是 CSS 里的 ::before
+      （跨在边界上的一条 7px），这样加了它布局一个像素都不变。
+    -->
+    <div class="pane-resizer" id="resize-sidebar" role="separator"
+         aria-orientation="vertical" aria-label="拖动调整文件树宽度" title="拖动调整宽度（双击复位）"></div>
+
     <!-- 中：正文 -->
     <main class="content" id="content" tabindex="-1">
 
@@ -175,6 +182,10 @@
       </div>
     </section>
 
+    <!-- 正文 / 大纲 之间的拖拽条 -->
+    <div class="pane-resizer" id="resize-outline" role="separator"
+         aria-orientation="vertical" aria-label="拖动调整大纲宽度" title="拖动调整宽度（双击复位）"></div>
+
     <!-- 右：大纲 -->
     <aside class="pane outline" id="outline">
       <div class="pane-head">
@@ -219,6 +230,7 @@
 <script src="search.js"></script>
 <script src="linenum.js"></script>
 <script src="editor.js"></script>
+<script src="panes.js"></script>
 <script src="tabs.js"></script>
 <script src="quickopen.js"></script>
 <script src="mermaid-render.js"></script>

@@ -180,9 +180,16 @@
 
     $('sidebar').hidden = !showSidebar;
     $('outline').hidden = !showOutline;
+    // 面板收起来时拖拽条也得跟着收 —— 否则正文边缘会留下一条能拖的隐形热区
+    $('resize-sidebar').hidden = !showSidebar;
+    $('resize-outline').hidden = !showOutline;
+
     $('btn-sidebar').classList.toggle('active', showSidebar);
     $('btn-outline').classList.toggle('active', showOutline);
     $('btn-outline').disabled = isText;
+
+    // 侧栏开合会改变另一侧的可用上限（见 panes.js 的 clamp）
+    global.Panes.apply(state.settings);
 
     setTimeout(relayout, 60);
   }
@@ -892,6 +899,11 @@
     });
     global.QuickOpen.attach((filePath) => openDocument(filePath));
     global.Outline.attach();
+    global.Panes.attach({
+      settings: state.settings,
+      onChange: patchSettings,
+      onResize: relayout
+    });
     global.Search.attach();
     global.LineNumbers.attach();
     global.Editor.attach(onEditorExit);

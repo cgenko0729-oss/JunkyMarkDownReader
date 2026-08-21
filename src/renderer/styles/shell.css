@@ -23,6 +23,10 @@
   --shell-accent: #0969da;
   --shell-shadow: rgba(31, 35, 40, 0.12);
   --shell-overlay: rgba(255, 255, 255, 0.82);
+
+  /* 侧栏宽度。运行时由 renderer/panes.js 覆盖，这里的值是首次启动的默认 */
+  --sidebar-w: 240px;
+  --outline-w: 230px;
 }
 
 :root[data-mode="dark"] {
@@ -306,16 +310,73 @@ body {
   overflow: hidden;
 }
 
+/*
+ * 宽度走 flex-basis 而不是 width：.pane 是 flex: 0 0 auto，用 basis 一处生效，
+ * 不必再写 min-width 去防收缩。溢出由 .pane 的 overflow: hidden 兜住。
+ */
 .sidebar {
-  width: 240px;
-  min-width: 240px;
+  flex-basis: var(--sidebar-w);
   border-right: 1px solid var(--shell-border);
 }
 
 .outline {
-  width: 230px;
-  min-width: 230px;
+  flex-basis: var(--outline-w);
   border-left: 1px solid var(--shell-border);
+}
+
+/* ---------------- 侧栏拖拽条 ----------------
+ *
+ * 本体宽度为 0，真正的热区是 ::before —— 一条跨在面板边界上的 7px。
+ * 这么做是为了让「加了拖拽条」这件事对布局零影响：给它真实宽度的话，
+ * 面板边框和正文之间就会裂开一道几像素的缝。
+ */
+
+.pane-resizer {
+  position: relative;
+  flex: 0 0 0;
+  width: 0;
+  z-index: 6;
+}
+
+.pane-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 7px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 120ms ease;
+}
+
+/* 悬停/拖动时才显形。平时一条彩色竖线杵在那里太吵 */
+.pane-resizer:hover::before,
+.pane-resizer.dragging::before {
+  background: var(--shell-accent);
+}
+
+.pane-resizer.dragging::before {
+  /* 拖动中把热区放宽，手抖一下也不会脱手 */
+  left: -60px;
+  width: 120px;
+  background: linear-gradient(to right,
+              transparent 0, transparent calc(50% - 1px),
+              var(--shell-accent) calc(50% - 1px), var(--shell-accent) calc(50% + 1px),
+              transparent calc(50% + 1px), transparent 100%);
+}
+
+/*
+ * 拖动进行中：全局压住文字选取和光标形状。
+ * 少了这一条，快速拖过正文会把整段文字刷成选中状态。
+ */
+body.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+body.resizing * {
+  cursor: col-resize !important;
 }
 
 .pane-head {
@@ -445,13 +506,46 @@ body {
 /* ---------------- 大纲 ---------------- */
 
 .outline-item {
+  position: relative;
   padding: 3px 10px 3px 0;
   border-left: 2px solid transparent;
   color: var(--shell-fg-muted);
   cursor: pointer;
+  /*
+   * 文字挪进了 .outline-text（见 outline.js）。悬停展开时那个 span 会变成
+   * 绝对定位，这一条脱离文档流之后本行会塌成只剩 padding —— min-height
+   * 就是用来撑住行高的，值刚好是一行文字（13px × 1.5）。
+   */
+  min-height: 1.5em;
+}
+
+.outline-text {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+ * 标题被截断时（由 outline.js 量出来后打上 truncated），悬停浮出完整内容。
+ *
+ * 只能向下长、不能向左越界：外层 .pane 是 overflow: hidden，往左溢出会被直接
+ * 裁掉。所以浮层跟侧栏同宽，靠换行把剩下的字放下来。
+ */
+.outline-item.truncated:hover > .outline-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  padding: 3px 10px 4px 0;
+  padding-left: inherit;          /* 跟随本行的层级缩进 */
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;        /* 超长的英文标识符也要能断 */
+  border-radius: 0 4px 4px 0;
+  background: var(--shell-bg-raised);
+  box-shadow: 0 4px 14px var(--shell-shadow);
 }
 
 .outline-item:hover {

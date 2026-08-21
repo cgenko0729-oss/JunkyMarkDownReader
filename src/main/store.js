@@ -20,6 +20,8 @@ const DEFAULTS = {
   contentWidth: 0,
   showSidebar: false,         // 左侧文件树
   showOutline: true,          // 右侧大纲
+  sidebarWidth: 240,          // 文件树宽度 px（拖拽条调整，见 renderer/panes.js）
+  outlineWidth: 230,          // 大纲宽度 px
   showLineNumbers: false,     // 正文左侧的源文件行号槽（标的是每个块在 .md 里的起始行）
   workspace: null,            // 当前打开的工作区目录
   recentFiles: [],            // 最近打开的文档（最多 15 条）
